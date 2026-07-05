@@ -1,0 +1,914 @@
+<Layouts.app
+  flash={@flash}
+  notebook={@notebook}
+  projects={@projects}
+  project_name_form={@project_name_form}
+>
+  <div class="w-full max-w-none px-3 py-3 sm:px-4 lg:px-5">
+    <section
+      id="notebook-shell"
+      class="grid gap-3 lg:h-[calc(100vh-5.5rem)] lg:min-h-0 lg:grid-cols-[25.2rem_minmax(0,1fr)_26.4rem] lg:overflow-hidden"
+    >
+      <aside id="source-panel" class="min-h-0">
+        <div class="flex h-full min-h-0 flex-col rounded-lg border border-zinc-200 bg-white shadow-sm">
+          <div class="flex items-center gap-3 px-5 pb-1 pt-4">
+            <.icon name="hero-archive-box" class="size-5 text-zinc-700" />
+            <h2 class="text-base font-semibold text-zinc-950">Sources</h2>
+            <div class="ml-auto flex items-center gap-2">
+              <div class="inline-flex h-8 items-center gap-2 rounded-md border border-zinc-200 px-3">
+                <span class="text-xs text-zinc-500">Sources</span>
+                <span class="text-sm font-semibold text-zinc-950">{@source_count}</span>
+              </div>
+              <div class="inline-flex h-8 items-center gap-2 rounded-md border border-zinc-200 px-3">
+                <span class="text-xs text-zinc-500">Words</span>
+                <span class="text-sm font-semibold text-zinc-950">{@word_count}</span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            :if={@active_source}
+            id="source-detail-view"
+            class="flex min-h-0 flex-1 flex-col px-4 pb-4"
+          >
+            <div class="flex shrink-0 items-center gap-2 pb-3">
+              <button
+                id="close-source-detail-button"
+                type="button"
+                phx-click="close_source"
+                class="inline-flex size-8 items-center justify-center rounded-md bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200 hover:text-zinc-950"
+                aria-label="Close source"
+              >
+                <.icon name="hero-arrow-left" class="size-4" />
+              </button>
+              <div class="min-w-0 flex-1">
+                <h3
+                  id="source-detail-title"
+                  class="break-words text-sm font-semibold leading-5 text-zinc-950"
+                >
+                  {@active_source.title}
+                </h3>
+                <p class="text-xs text-zinc-500">{@active_source.word_count} words</p>
+              </div>
+            </div>
+            <div
+              id="source-detail-body"
+              class="source-detail-body min-h-0 flex-1 overflow-y-auto rounded-md bg-zinc-50 px-3"
+            >
+              <p class="whitespace-pre-wrap text-sm leading-6">{@active_source.body}</p>
+            </div>
+          </div>
+
+          <div :if={!@active_source} class="shrink-0 space-y-4 px-4 pb-3 pt-1">
+            <button
+              id="toggle-source-form-button"
+              type="button"
+              phx-click="toggle_source_form"
+              aria-expanded={@show_source_form}
+              class="inline-flex h-11 w-full items-center justify-between rounded-md bg-zinc-50 px-3 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-100"
+            >
+              <span class="inline-flex items-center gap-2">
+                <.icon name="hero-plus" class="size-4" /> Add source
+              </span>
+              <.icon
+                name={if(@show_source_form, do: "hero-chevron-up", else: "hero-chevron-down")}
+                class="size-4 text-zinc-500"
+              />
+            </button>
+
+            <.form
+              for={@source_form}
+              id="source-form"
+              phx-submit="add_source"
+              class={[
+                "space-y-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3",
+                !@show_source_form && "hidden"
+              ]}
+            >
+              <.input
+                field={@source_form[:title]}
+                type="text"
+                label="Title"
+                placeholder="Quarterly research notes"
+                class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200"
+              />
+              <.input
+                field={@source_form[:body]}
+                type="textarea"
+                label="Source text"
+                placeholder="Paste documents, meeting notes, transcripts, or article excerpts."
+                rows="7"
+                class="min-h-36 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm leading-6 text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200"
+              />
+              <button
+                id="add-source-button"
+                type="submit"
+                class="inline-flex w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 phx-submit-loading:opacity-70"
+              >
+                <.icon name="hero-document-plus" class="size-4" /> Add to notebook
+              </button>
+            </.form>
+
+            <div class="rounded-lg border border-zinc-200 bg-zinc-50 p-2">
+              <.form
+                for={@web_search_form}
+                id="web-search-form"
+                phx-submit="web_search"
+                class="flex items-center gap-2"
+              >
+                <div class="min-w-0 flex-1">
+                  <input
+                    type="search"
+                    id={@web_search_form[:query].id}
+                    name={@web_search_form[:query].name}
+                    value={@web_search_form[:query].value}
+                    placeholder="Search the web for new sources"
+                    class="h-8 w-full border-0 bg-transparent px-0 text-sm text-zinc-950 outline-none placeholder:text-zinc-500 focus:ring-0"
+                  />
+                </div>
+                <button
+                  id="web-search-button"
+                  type="submit"
+                  disabled={@web_searching}
+                  class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-zinc-500 transition hover:bg-zinc-300 hover:text-zinc-800 phx-submit-loading:opacity-70"
+                  aria-label="Search web"
+                >
+                  <.icon :if={!@web_searching} name="hero-magnifying-glass" class="size-4" />
+                  <.icon
+                    :if={@web_searching}
+                    name="hero-arrow-path"
+                    class="size-4 motion-safe:animate-spin"
+                  />
+                </button>
+              </.form>
+            </div>
+          </div>
+
+          <div :if={!@active_source} class="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+            <.form
+              :if={@web_results != []}
+              for={@web_import_form}
+              id="web-import-form"
+              phx-submit="add_web_sources"
+              class="space-y-3"
+            >
+              <div class="flex items-center justify-between gap-3 px-1">
+                <.icon name="hero-sparkles" class="size-5 text-zinc-700" />
+                <div class="ml-auto flex items-center gap-2">
+                  <button
+                    id="add-web-sources-button"
+                    type="submit"
+                    disabled={MapSet.size(@importing_web_result_ids) > 0}
+                    class="inline-flex h-8 items-center justify-center gap-1 rounded-md bg-zinc-950 px-3 py-1 text-sm font-semibold text-white transition hover:bg-zinc-800 phx-submit-loading:opacity-70"
+                  >
+                    <.icon
+                      :if={MapSet.size(@importing_web_result_ids) == 0}
+                      name="hero-plus"
+                      class="size-4 phx-submit-loading:hidden"
+                    />
+                    <.icon
+                      :if={MapSet.size(@importing_web_result_ids) > 0}
+                      name="hero-arrow-path"
+                      class="size-4 motion-safe:animate-spin"
+                    />
+                    <span>
+                      {if MapSet.size(@importing_web_result_ids) > 0,
+                        do: "Adding...",
+                        else: "Add selected"}
+                    </span>
+                  </button>
+                  <button
+                    id="cancel-web-results-button"
+                    type="button"
+                    phx-click="cancel_web_results"
+                    class="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-zinc-300 bg-white px-3 py-1 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-zinc-950"
+                  >
+                    <.icon name="hero-x-mark" class="size-4" /> Close
+                  </button>
+                  <label class="flex items-center gap-2 text-sm font-medium text-zinc-950">
+                    Select all
+                    <input
+                      id="web-result-select-all"
+                      type="checkbox"
+                      checked={all_web_results_selected?(@web_results, @web_import_form)}
+                      phx-click="set_all_web_results"
+                      phx-value-checked={
+                        if all_web_results_selected?(@web_results, @web_import_form),
+                          do: "false",
+                          else: "true"
+                      }
+                      class="size-5 shrink-0 cursor-pointer rounded border-zinc-300 text-zinc-950 focus:ring-zinc-400"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div id="web-results" class="max-h-[28rem] space-y-1 overflow-y-auto pr-1">
+                <label
+                  :for={result <- @web_results}
+                  id={"web-result-#{result.id}"}
+                  class="flex min-h-14 items-center gap-3 rounded-lg px-2 py-2 transition hover:bg-zinc-50"
+                >
+                  <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-sm bg-emerald-500 text-xs font-bold text-white">
+                    {String.first(result.title || "W")}
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm leading-5 text-zinc-950">{result.title}</p>
+                    <p class="truncate text-xs text-zinc-500">{result.url}</p>
+                  </div>
+                  <input
+                    :if={!MapSet.member?(@importing_web_result_ids, result.id)}
+                    id={"web-result-checkbox-#{result.id}"}
+                    type="checkbox"
+                    name="web_import[result_ids][]"
+                    value={result.id}
+                    phx-click="toggle_web_import_result"
+                    phx-value-result-id={result.id}
+                    checked={web_result_checked?(@web_import_form, result)}
+                    class="size-5 shrink-0 cursor-pointer rounded border-zinc-300 text-zinc-950 focus:ring-zinc-400"
+                  />
+                  <.icon
+                    :if={MapSet.member?(@importing_web_result_ids, result.id)}
+                    name="hero-arrow-path"
+                    class="size-5 shrink-0 text-zinc-500 motion-safe:animate-spin"
+                  />
+                </label>
+              </div>
+            </.form>
+
+            <div class="grid h-8 grid-cols-[minmax(0,1fr)_5rem] items-center gap-2 px-2">
+              <button
+                id="delete-selected-sources-button"
+                type="button"
+                phx-click="delete_selected_sources"
+                data-confirm="Delete checked sources?"
+                class="inline-flex w-fit items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
+              >
+                <.icon name="hero-trash" class="size-4" /> Delete checked
+              </button>
+              <label class="grid grid-cols-[1fr_1rem] items-center gap-2 text-right text-xs font-medium text-zinc-950">
+                <span>Select all</span>
+                <input
+                  id="source-refs-select-all"
+                  type="checkbox"
+                  checked={all_source_refs_selected?(@sources, @selected_source_ids)}
+                  phx-click="set_all_source_refs"
+                  phx-value-checked={
+                    if(all_source_refs_selected?(@sources, @selected_source_ids),
+                      do: "false",
+                      else: "true"
+                    )
+                  }
+                  class="size-4 rounded border-zinc-300 text-zinc-950 focus:ring-zinc-400"
+                />
+              </label>
+            </div>
+
+            <.form
+              for={to_form(%{}, as: :source_refs)}
+              id="source-refs-form"
+              phx-change="source_refs_changed"
+              class="space-y-2"
+            >
+              <div id="sources-list" class="space-y-1">
+                <div
+                  :if={@sources == []}
+                  class="rounded-md bg-zinc-50 p-4 text-sm text-zinc-500"
+                >
+                  No sources yet.
+                </div>
+                <article
+                  :for={source <- @sources}
+                  id={"source-#{source.id}"}
+                  class="grid h-9 grid-cols-[minmax(0,1fr)_1.75rem_1rem] items-center gap-2 rounded-md bg-zinc-50 px-2 transition hover:bg-zinc-100"
+                >
+                  <button
+                    id={"open-source-#{source.id}"}
+                    type="button"
+                    phx-click="open_source"
+                    phx-value-id={source.id}
+                    class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm font-semibold text-zinc-950"
+                  >
+                    {source.title}
+                  </button>
+                  <button
+                    id={"delete-source-#{source.id}"}
+                    type="button"
+                    phx-click="delete_source"
+                    phx-value-id={source.id}
+                    class="inline-flex size-7 items-center justify-center rounded-md text-zinc-500 transition hover:bg-white hover:text-red-700"
+                    aria-label="Delete source"
+                  >
+                    <.icon name="hero-trash" class="size-4" />
+                  </button>
+                  <input
+                    id={"source-ref-checkbox-#{source.id}"}
+                    type="checkbox"
+                    name="source_refs[source_ids][]"
+                    value={source.id}
+                    checked={source_ref_checked?(@selected_source_ids, source)}
+                    class="size-4 shrink-0 cursor-pointer rounded border-zinc-300 text-zinc-950 focus:ring-zinc-400"
+                  />
+                </article>
+              </div>
+            </.form>
+          </div>
+        </div>
+      </aside>
+
+      <main
+        id="chat-panel"
+        class="flex min-h-0 flex-col rounded-lg border border-zinc-200 bg-white shadow-sm"
+      >
+        <div class="border-b border-zinc-200 px-5 pb-1 pt-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+              <.icon name="hero-chat-bubble-left-right" class="size-5 text-zinc-700" />
+              <h2 class="text-base font-semibold text-zinc-950">Chat & MCP result</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="inline-flex rounded-md border border-zinc-200 bg-zinc-50 p-0.5 text-xs font-semibold">
+                <button
+                  id="chat-mode-local"
+                  type="button"
+                  phx-click="set_chat_mode"
+                  phx-value-mode="local"
+                  class={[
+                    "inline-flex h-7 items-center gap-1 rounded px-2 transition",
+                    @chat_mode == "local" && "bg-white text-emerald-800 shadow-sm",
+                    @chat_mode != "local" && "text-zinc-500 hover:text-zinc-950"
+                  ]}
+                >
+                  <.icon name="hero-check-circle" class="size-4" /> local ONLY
+                </button>
+                <button
+                  id="chat-mode-local-web"
+                  type="button"
+                  phx-click="set_chat_mode"
+                  phx-value-mode="local_web"
+                  class={[
+                    "inline-flex h-7 items-center gap-1 rounded px-2 transition",
+                    @chat_mode == "local_web" && "bg-white text-emerald-800 shadow-sm",
+                    @chat_mode != "local_web" && "text-zinc-500 hover:text-zinc-950"
+                  ]}
+                >
+                  <.icon name="hero-magnifying-glass" class="size-4" /> local＋web
+                </button>
+                <button
+                  id="chat-mode-web"
+                  type="button"
+                  phx-click="set_chat_mode"
+                  phx-value-mode="web"
+                  class={[
+                    "inline-flex h-7 items-center gap-1 rounded px-2 transition",
+                    @chat_mode == "web" && "bg-white text-sky-800 shadow-sm",
+                    @chat_mode != "web" && "text-zinc-500 hover:text-zinc-950"
+                  ]}
+                >
+                  <.icon name="hero-globe-alt" class="size-4" /> web ONLY
+                </button>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  id="archive-chat-history-button"
+                  type="button"
+                  phx-click="archive_chat_history"
+                  disabled={@chat_message_count == 0}
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Archive chat history"
+                >
+                  <.icon name="hero-archive-box" class="size-4" />
+                </button>
+                <button
+                  id="delete-chat-history-button"
+                  type="button"
+                  phx-click="delete_chat_history"
+                  data-confirm="Delete chat history?"
+                  disabled={@chat_message_count == 0}
+                  class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Delete chat history"
+                >
+                  <.icon name="hero-trash" class="size-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="messages"
+          phx-hook="ChatScroll"
+          phx-update="stream"
+          class="min-h-0 flex-1 space-y-3 overflow-y-auto p-5"
+        >
+          <div
+            id="messages-empty"
+            class="hidden only:block rounded-lg border border-dashed border-zinc-300 p-8 text-center"
+          >
+            <.icon name="hero-sparkles" class="mx-auto size-8 text-zinc-400" />
+            <p class="mt-3 text-sm font-medium text-zinc-950">No questions yet</p>
+            <p class="mt-1 text-sm text-zinc-500">
+              Add a source, then ask for a cited draft answer.
+            </p>
+          </div>
+          <article
+            :for={{id, message} <- @streams.messages}
+            id={id}
+            class={[
+              "max-w-[89%] rounded-lg border p-4 shadow-sm",
+              message_alignment(message.role),
+              message_tone(message.role)
+            ]}
+          >
+            <p class="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
+            <div :if={message.citations != %{}} class="mt-3 flex flex-wrap gap-2">
+              <button
+                :for={{index, citation} <- ordered_citations(message)}
+                :if={citation["source_id"]}
+                type="button"
+                phx-click="open_citation_source"
+                phx-value-source-id={citation["source_id"]}
+                phx-value-position={citation["position"]}
+                class="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs text-emerald-950 transition hover:border-emerald-500 hover:bg-emerald-100"
+              >
+                <.icon name="hero-document-text" class="size-3.5" />
+                <span class="font-semibold">local</span>
+                <span>[{index}] {citation["source_title"]}</span>
+              </button>
+              <button
+                :for={{index, citation} <- ordered_citations(message)}
+                :if={!citation["source_id"] && citation["source_url"]}
+                type="button"
+                phx-click="add_web_citation_source"
+                phx-value-url={citation["source_url"]}
+                data-confirm="Add this web source to Sources?"
+                class="inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-950 transition hover:border-sky-500 hover:bg-sky-100"
+              >
+                <.icon name="hero-globe-alt" class="size-3.5" />
+                <span class="font-semibold">web</span>
+                <span>[{index}] {citation["source_title"]}</span>
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <div class="border-t border-zinc-200 p-4">
+          <.form
+            for={@question_form}
+            id="question-form"
+            phx-change="question_changed"
+            phx-submit="ask"
+            class="flex w-full items-center gap-2"
+          >
+            <div class="min-w-0 flex-1">
+              <input
+                type="text"
+                id={@question_form[:question].id}
+                name={@question_form[:question].name}
+                value={@question_form[:question].value}
+                placeholder="What do the sources say about pricing risk?"
+                class="h-11 w-full min-w-0 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none transition focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200"
+              />
+            </div>
+            <button
+              id="ask-button"
+              type="submit"
+              disabled={@asking || ask_disabled?(@chat_mode, @selected_source_ids)}
+              class={[
+                "inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition phx-submit-loading:opacity-70 sm:min-w-24",
+                (@asking || ask_disabled?(@chat_mode, @selected_source_ids)) &&
+                  "cursor-not-allowed bg-zinc-400",
+                !@asking && !ask_disabled?(@chat_mode, @selected_source_ids) &&
+                  "bg-zinc-950 hover:bg-zinc-800"
+              ]}
+            >
+              <.icon :if={!@asking} name="hero-paper-airplane" class="size-4" />
+              <.icon
+                :if={@asking}
+                name="hero-arrow-path"
+                class="size-4 motion-safe:animate-spin"
+              />
+              <span>{if @asking, do: "Asking...", else: "Ask"}</span>
+            </button>
+          </.form>
+        </div>
+      </main>
+
+      <aside id="mcp-panel" class="flex h-full min-h-0 flex-col space-y-4 overflow-hidden">
+        <div class="order-2 shrink-0 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <div class="flex items-center gap-2">
+            <.icon name="hero-server-stack" class="size-5 text-zinc-700" />
+            <h2 class="text-sm font-semibold text-zinc-950">Embedded MCP</h2>
+          </div>
+          <dl class="mt-4 space-y-3 text-sm">
+            <div>
+              <dd class="mt-1 flex flex-wrap items-center gap-2 text-zinc-700">
+                <span class={[
+                  "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
+                  @llm_status.configured? &&
+                    "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200",
+                  !@llm_status.configured? && "bg-amber-50 text-amber-800 ring-1 ring-amber-200"
+                ]}>
+                  <.icon
+                    name={
+                      if(@llm_status.configured?,
+                        do: "hero-bolt",
+                        else: "hero-exclamation-triangle"
+                      )
+                    }
+                    class="size-3.5"
+                  />
+                  {if(@llm_status.configured?, do: "GPT on", else: "Unavailable")}
+                </span>
+                <span class="font-mono text-xs">{@llm_status.model}</span>
+                <span class="text-xs">effort {@llm_status.reasoning_effort}</span>
+              </dd>
+            </div>
+            <div>
+              <dt class="text-xs uppercase tracking-[0.16em] text-zinc-500">Endpoint</dt>
+              <dd class="mt-1 rounded-md bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-800">
+                POST /mcp
+              </dd>
+            </div>
+          </dl>
+          <.form
+            for={@mcp_form}
+            id="mcp-execute-form"
+            phx-submit="execute_mcp"
+            class="mt-4 space-y-3"
+          >
+            <div class="grid grid-cols-2 gap-2">
+              <label class="text-xs font-medium text-zinc-600">
+                Mode
+                <select
+                  name="mcp[operation]"
+                  class="mt-1 h-8 w-full rounded-md border border-zinc-300 bg-white px-2 text-xs text-zinc-950"
+                >
+                  <option value="tool" selected={@mcp_form[:operation].value == "tool"}>
+                    tool
+                  </option>
+                  <option
+                    value="resource_list"
+                    selected={@mcp_form[:operation].value == "resource_list"}
+                  >
+                    resources/list
+                  </option>
+                  <option
+                    value="resource_read"
+                    selected={@mcp_form[:operation].value == "resource_read"}
+                  >
+                    resources/read
+                  </option>
+                </select>
+              </label>
+              <label class="text-xs font-medium text-zinc-600">
+                Tool
+                <select
+                  name="mcp[tool]"
+                  class="mt-1 h-8 w-full rounded-md border border-zinc-300 bg-white px-2 text-xs text-zinc-950"
+                >
+                  <option value="notex.search" selected={@mcp_form[:tool].value == "notex.search"}>
+                    search
+                  </option>
+                  <option value="notex.answer" selected={@mcp_form[:tool].value == "notex.answer"}>
+                    answer
+                  </option>
+                  <option
+                    value="notex.list_notebooks"
+                    selected={@mcp_form[:tool].value == "notex.list_notebooks"}
+                  >
+                    list_notebooks
+                  </option>
+                  <option
+                    value="notex.llm_status"
+                    selected={@mcp_form[:tool].value == "notex.llm_status"}
+                  >
+                    llm_status
+                  </option>
+                  <option
+                    value="notex.add_source"
+                    selected={@mcp_form[:tool].value == "notex.add_source"}
+                  >
+                    add_source
+                  </option>
+                </select>
+              </label>
+            </div>
+            <input
+              type="text"
+              name="mcp[query]"
+              value={@mcp_form[:query].value}
+              placeholder="Query or question"
+              class="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950 outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200"
+            />
+            <details class="rounded-md border border-zinc-200 bg-zinc-50">
+              <summary class="flex h-8 cursor-pointer items-center gap-2 px-3 text-xs font-semibold text-zinc-700">
+                <.icon name="hero-adjustments-horizontal" class="size-4" /> Advanced
+              </summary>
+              <div class="space-y-2 px-3 pb-3">
+                <input
+                  type="text"
+                  name="mcp[resource_uri]"
+                  value={@mcp_form[:resource_uri].value}
+                  placeholder="notex:// resource URI"
+                  class="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 font-mono text-xs text-zinc-950 outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200"
+                />
+                <textarea
+                  name="mcp[arguments]"
+                  rows="3"
+                  class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-zinc-950 outline-none focus:border-zinc-950 focus:ring-2 focus:ring-zinc-200"
+                >{@mcp_form[:arguments].value}</textarea>
+              </div>
+            </details>
+            <button
+              id="mcp-execute-button"
+              type="submit"
+              disabled={@mcp_running}
+              class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white transition hover:bg-zinc-800 phx-submit-loading:opacity-70"
+            >
+              <.icon
+                :if={!@mcp_running}
+                name="hero-play"
+                class="size-4 phx-submit-loading:hidden"
+              />
+              <.icon
+                :if={@mcp_running}
+                name="hero-arrow-path"
+                class="size-4 motion-safe:animate-spin"
+              />
+              <span>{if @mcp_running, do: "Running...", else: "Run MCP"}</span>
+            </button>
+          </.form>
+        </div>
+
+        <div class="order-1 flex min-h-0 flex-1 flex-col rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+          <div class="flex items-center gap-2">
+            <.icon name="hero-rectangle-group" class="size-5 text-zinc-700" />
+            <h2 class="text-sm font-semibold text-zinc-950">Media</h2>
+          </div>
+
+          <div class="mt-4 grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3">
+            <button
+              id="studio-action-audio-overview"
+              type="button"
+              phx-click="generate_studio"
+              phx-value-artifact="audio_overview"
+              class="flex h-10 min-w-0 items-center justify-between gap-1 rounded-lg bg-indigo-50 px-1.5 text-left text-[11px] font-semibold text-indigo-950 transition hover:bg-indigo-100 phx-click-loading:opacity-70 phx-click-loading:ring-2 phx-click-loading:ring-indigo-300"
+            >
+              <span class="inline-flex min-w-0 items-center gap-1">
+                <.icon name="hero-sparkles" class="size-4 shrink-0" />
+                <span class="whitespace-nowrap">Audio</span>
+              </span>
+              <.icon
+                :if={studio_generating?(@generating_studio_artifacts, "audio_overview")}
+                name="hero-arrow-path"
+                class="size-4 shrink-0 animate-spin"
+              />
+              <.icon
+                :if={!studio_generating?(@generating_studio_artifacts, "audio_overview")}
+                name="hero-chevron-right"
+                class="size-3.5 shrink-0 opacity-60"
+              />
+            </button>
+            <button
+              id="studio-action-report"
+              type="button"
+              phx-click="generate_studio"
+              phx-value-artifact="report"
+              class="flex h-10 min-w-0 items-center justify-between gap-1 rounded-lg bg-amber-50 px-1.5 text-left text-[11px] font-semibold text-amber-950 transition hover:bg-amber-100 phx-click-loading:opacity-70 phx-click-loading:ring-2 phx-click-loading:ring-amber-300"
+            >
+              <span class="inline-flex min-w-0 items-center gap-1">
+                <.icon name="hero-document-text" class="size-4 shrink-0" />
+                <span class="whitespace-nowrap">Report</span>
+              </span>
+              <.icon
+                :if={studio_generating?(@generating_studio_artifacts, "report")}
+                name="hero-arrow-path"
+                class="size-4 shrink-0 animate-spin"
+              />
+              <.icon
+                :if={!studio_generating?(@generating_studio_artifacts, "report")}
+                name="hero-chevron-right"
+                class="size-3.5 shrink-0 opacity-60"
+              />
+            </button>
+            <button
+              id="studio-action-quiz"
+              type="button"
+              phx-click="generate_studio"
+              phx-value-artifact="quiz"
+              class="flex h-10 min-w-0 items-center justify-between gap-1 rounded-lg bg-cyan-50 px-1.5 text-left text-[11px] font-semibold text-cyan-950 transition hover:bg-cyan-100 phx-click-loading:opacity-70 phx-click-loading:ring-2 phx-click-loading:ring-cyan-300"
+            >
+              <span class="inline-flex min-w-0 items-center gap-1">
+                <.icon name="hero-question-mark-circle" class="size-4 shrink-0" />
+                <span class="whitespace-nowrap">Quiz</span>
+              </span>
+              <.icon
+                :if={studio_generating?(@generating_studio_artifacts, "quiz")}
+                name="hero-arrow-path"
+                class="size-4 shrink-0 animate-spin"
+              />
+              <.icon
+                :if={!studio_generating?(@generating_studio_artifacts, "quiz")}
+                name="hero-chevron-right"
+                class="size-3.5 shrink-0 opacity-60"
+              />
+            </button>
+            <button
+              id="studio-action-flashcards"
+              type="button"
+              phx-click="generate_studio"
+              phx-value-artifact="flashcards"
+              class="flex h-10 min-w-0 items-center justify-between gap-1 rounded-lg bg-rose-50 px-1.5 text-left text-[11px] font-semibold text-rose-950 transition hover:bg-rose-100 phx-click-loading:opacity-70 phx-click-loading:ring-2 phx-click-loading:ring-rose-300"
+            >
+              <span class="inline-flex min-w-0 items-center gap-1">
+                <.icon name="hero-rectangle-stack" class="size-4 shrink-0" />
+                <span class="whitespace-nowrap">Cards</span>
+              </span>
+              <.icon
+                :if={studio_generating?(@generating_studio_artifacts, "flashcards")}
+                name="hero-arrow-path"
+                class="size-4 shrink-0 animate-spin"
+              />
+              <.icon
+                :if={!studio_generating?(@generating_studio_artifacts, "flashcards")}
+                name="hero-chevron-right"
+                class="size-3.5 shrink-0 opacity-60"
+              />
+            </button>
+            <button
+              id="studio-action-data-table"
+              type="button"
+              phx-click="generate_studio"
+              phx-value-artifact="data_table"
+              class="flex h-10 min-w-0 items-center justify-between gap-1 rounded-lg bg-violet-50 px-1.5 text-left text-[11px] font-semibold text-violet-950 transition hover:bg-violet-100 phx-click-loading:opacity-70 phx-click-loading:ring-2 phx-click-loading:ring-violet-300"
+            >
+              <span class="inline-flex min-w-0 items-center gap-1">
+                <.icon name="hero-table-cells" class="size-4 shrink-0" />
+                <span class="whitespace-nowrap">DataTable</span>
+              </span>
+              <.icon
+                :if={studio_generating?(@generating_studio_artifacts, "data_table")}
+                name="hero-arrow-path"
+                class="size-4 shrink-0 animate-spin"
+              />
+              <.icon
+                :if={!studio_generating?(@generating_studio_artifacts, "data_table")}
+                name="hero-chevron-right"
+                class="size-3.5 shrink-0 opacity-60"
+              />
+            </button>
+            <button
+              id="studio-action-mind-map"
+              type="button"
+              phx-click="generate_studio"
+              phx-value-artifact="mind_map"
+              class="flex h-10 min-w-0 items-center justify-between gap-1 rounded-lg bg-fuchsia-50 px-1.5 text-left text-[11px] font-semibold text-fuchsia-950 transition hover:bg-fuchsia-100 phx-click-loading:opacity-70 phx-click-loading:ring-2 phx-click-loading:ring-fuchsia-300"
+            >
+              <span class="inline-flex min-w-0 items-center gap-1">
+                <.icon name="hero-share" class="size-4 shrink-0" />
+                <span class="whitespace-nowrap">MindMap</span>
+              </span>
+              <.icon
+                :if={studio_generating?(@generating_studio_artifacts, "mind_map")}
+                name="hero-arrow-path"
+                class="size-4 shrink-0 animate-spin"
+              />
+              <.icon
+                :if={!studio_generating?(@generating_studio_artifacts, "mind_map")}
+                name="hero-chevron-right"
+                class="size-3.5 shrink-0 opacity-60"
+              />
+            </button>
+          </div>
+
+          <div class="mt-4 flex min-h-0 flex-1 flex-col rounded-lg bg-zinc-50 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Generated
+              </h3>
+              <span class="text-xs text-zinc-500">{length(@studio_outputs)}</span>
+            </div>
+            <div
+              id="studio-output-list"
+              class="mt-2 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1"
+            >
+              <p :if={@studio_outputs == []} class="text-sm text-zinc-500">
+                No Studio outputs yet.
+              </p>
+              <div
+                :for={output <- @studio_outputs}
+                id={"studio-output-#{output.id}"}
+                class={[
+                  "flex h-10 w-full items-center justify-between gap-1 rounded-md text-xs transition hover:ring-2 hover:ring-zinc-200",
+                  @active_studio_output && @active_studio_output.id == output.id &&
+                    "ring-2 ring-zinc-400",
+                  output.tone
+                ]}
+              >
+                <button
+                  type="button"
+                  phx-click="open_studio_output"
+                  phx-value-id={output.id}
+                  class="inline-flex h-full min-w-0 flex-1 items-center justify-between gap-2 px-2 text-left"
+                >
+                  <span class="inline-flex min-w-0 items-center gap-2">
+                    <.icon name={output.icon} class="size-4 shrink-0" />
+                    <span class="truncate font-semibold">{output.title}</span>
+                  </span>
+                  <span class="inline-flex shrink-0 items-center gap-1 text-zinc-500">
+                    <span class="hidden sm:inline">{output.label}</span>
+                  </span>
+                </button>
+                <button
+                  id={"delete-studio-output-#{output.id}"}
+                  type="button"
+                  phx-click="delete_studio_output"
+                  phx-value-id={output.id}
+                  class="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-zinc-500 transition hover:bg-white/70 hover:text-red-700"
+                  aria-label="Delete Studio output"
+                >
+                  <.icon name="hero-trash" class="size-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <div
+      :if={@active_studio_output}
+      id="studio-output-modal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/45 p-3 backdrop-blur-sm sm:p-6"
+      phx-window-keydown="close_studio_output"
+      phx-key="escape"
+    >
+      <button
+        id="studio-output-modal-backdrop"
+        type="button"
+        phx-click="close_studio_output"
+        class="absolute inset-0 cursor-default"
+        aria-label="Close Studio output"
+      >
+      </button>
+      <div
+        id="studio-player"
+        class="relative flex max-h-[88vh] w-full max-w-[96rem] flex-col rounded-lg border border-zinc-200 bg-white shadow-2xl"
+      >
+        <div class="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-200 px-4 py-3 sm:px-5">
+          <div class="min-w-0">
+            <p class="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              <.icon name={@active_studio_output.icon} class="size-4 shrink-0" />
+              {@active_studio_output.label}
+            </p>
+            <h3 class="mt-1 break-words text-base font-semibold leading-6 text-zinc-950">
+              {@active_studio_output.title}
+            </h3>
+            <time class="mt-1 block text-xs text-zinc-500">
+              {Calendar.strftime(@active_studio_output.inserted_at, "%Y-%m-%d %H:%M")}
+            </time>
+          </div>
+          <div class="inline-flex shrink-0 items-center gap-1">
+            <button
+              id={"delete-active-studio-output-#{@active_studio_output.id}"}
+              type="button"
+              phx-click="delete_studio_output"
+              phx-value-id={@active_studio_output.id}
+              class="inline-flex size-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-red-50 hover:text-red-700"
+              aria-label="Delete Studio output"
+            >
+              <.icon name="hero-trash" class="size-4" />
+            </button>
+            <button
+              id="close-studio-output-button"
+              type="button"
+              phx-click="close_studio_output"
+              class="inline-flex size-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-950"
+              aria-label="Close Studio output"
+            >
+              <.icon name="hero-x-mark" class="size-4" />
+            </button>
+          </div>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
+          <button
+            :if={@active_studio_output.type == "audio"}
+            id={"play-studio-output-#{@active_studio_output.id}"}
+            type="button"
+            phx-hook="SpeechPlayer"
+            data-text={@active_studio_output.content}
+            class="mb-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          >
+            <.icon name="hero-play" class="size-4" /> Play audio
+          </button>
+
+          <div class="studio-markdown rounded-md bg-zinc-50 p-4 text-sm leading-6 text-zinc-800">
+            {markdown_html(@active_studio_output.content)}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</Layouts.app>

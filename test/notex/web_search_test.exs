@@ -1,0 +1,299 @@
+defmodule Notex.WebSearchTest do
+  use ExUnit.Case, async: true
+
+  alias Notex.WebSearch
+
+  test "parses search results from Bing RSS" do
+    xml = """
+    <?xml version="1.0" encoding="utf-8" ?>
+    <rss version="2.0">
+      <channel>
+        <item>
+          <title>Alpha &amp; Beta ...</title>
+          <link>https://example.com/alpha</link>
+          <description>A useful source about alpha.</description>
+        </item>
+        <item>
+          <title>Gamma</title>
+          <link>https://example.com/gamma</link>
+          <description>Another useful source.</description>
+        </item>
+      </channel>
+    </rss>
+    """
+
+    assert [
+             %{
+               id: id,
+               title: "Alpha & Beta",
+               url: "https://example.com/alpha",
+               snippet: "A useful source about alpha."
+             },
+             %{title: "Gamma", url: "https://example.com/gamma"}
+           ] = WebSearch.parse_results(xml)
+
+    assert id == WebSearch.result_id("https://example.com/alpha")
+  end
+
+  test "parses search results from Bing HTML and decodes redirect URLs" do
+    encoded_url = "https://example.com/strategy" |> Base.url_encode64(padding: false)
+
+    html = """
+    <ol>
+      <li class="b_algo">
+        <h2>
+          <a href="https://www.bing.com/ck/a?u=a1#{encoded_url}&amp;ntb=1">
+            <strong>ピーター・ティール</strong>の戦略
+          </a>
+        </h2>
+        <div class="b_caption">
+          <p>意思決定と戦略に関する検索結果。</p>
+        </div>
+      </li>
+    </ol>
+    """
+
+    assert [
+             %{
+               title: "ピーター・ティール の戦略",
+               url: "https://example.com/strategy",
+               snippet: "意思決定と戦略に関する検索結果。"
+             }
+           ] = WebSearch.parse_html_results(html)
+  end
+
+  test "searches and fetches a selected result through an injected requester" do
+    requester = fn
+      "https://www.bing.com/search?format=rss&q=alpha" ->
+        {:ok,
+         %{
+           status: 200,
+           body:
+             ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel><item><title>Alpha ...</title><link>https://example.com/alpha</link><description>Snippet</description></item></channel></rss>)
+         }}
+
+      "https://example.com/alpha" ->
+        {:ok,
+         %{
+           status: 200,
+           body: ~S"""
+           <html><head><title>Alpha Complete Title</title><style>.x{}</style></head><body><h1>Alpha Complete Title</h1><p>Fetched page text.</p><script>nope()</script></body></html>
+           """
+         }}
+    end
+
+    assert {:ok, [result]} = WebSearch.search("alpha", requester: requester)
+
+    assert {:ok, %{title: "Alpha", body: body}} =
+             WebSearch.fetch_result(result, requester: requester)
+
+    assert body =~ "URL: https://example.com/alpha"
+    assert body =~ "Search snippet: Snippet"
+    assert body =~ "Fetched page text."
+    refute body =~ "nope()"
+  end
+
+  test "returns search results in provider order" do
+    requester = fn
+      "https://www.bing.com/search?format=rss&q=alpha+metrics" ->
+        {:ok,
+         %{
+           status: 200,
+           body: ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+             <item><title>Beta market report</title><link>https://example.com/beta</link><description>Market metrics overview.</description></item>
+             <item><title>Random page</title><link>https://example.com/other</link><description>Irrelevant content with no matching terms.</description></item>
+             <item><title>Alpha alpha deep dive</title><link>https://example.com/alpha</link><description>Contains alpha metrics trend</description></item>
+             </channel></rss>)
+         }}
+    end
+
+    assert {:ok, [first, second | _rest]} =
+             WebSearch.search("alpha metrics", requester: requester)
+
+    assert first.url == "https://example.com/beta"
+    assert second.url == "https://example.com/other"
+  end
+
+  test "returns up to twenty web search results" do
+    requester = fn
+      "https://www.bing.com/search?format=rss&q=many" ->
+        items =
+          1..25
+          |> Enum.map_join(fn index ->
+            ~s(<item><title>Result #{index}</title><link>https://example.com/#{index}</link><description>Snippet #{index}</description></item>)
+          end)
+
+        {:ok,
+         %{
+           status: 200,
+           body:
+             ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>#{items}</channel></rss>)
+         }}
+    end
+
+    assert {:ok, results} = WebSearch.search("many", requester: requester)
+    assert length(results) == 20
+    assert List.first(results).title == "Result 1"
+    assert List.last(results).title == "Result 20"
+  end
+
+  test "treats middle-dot phrases as connected search terms without hard-coded proper nouns" do
+    requester = fn url ->
+      parsed_query = URI.parse(url).query || ""
+      query = URI.decode_query(parsed_query)["q"] || ""
+      send(self(), {:requested_query, query})
+
+      {:ok,
+       %{
+         status: 200,
+         body: ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+           <item><title>ピーターの出演作</title><link>https://example.com/actor</link><description>ピーターの人物情報。</description></item>
+           <item><title>Search result</title><link>https://example.com/result</link><description>Returned by provider.</description></item>
+           <item><title>ピーター・ティールの意思決定</title><link>https://example.com/thiel</link><description>戦略と投資判断。</description></item>
+         </channel></rss>)
+       }}
+    end
+
+    assert {:ok, [first | _rest]} =
+             WebSearch.search("ピーター・ティール 意思決定 戦略", requester: requester)
+
+    assert first.url == "https://example.com/thiel"
+    assert_received {:requested_query, "ピーター ティール 意思決定 戦略"}
+    assert_received {:requested_query, "ピーターティール 意思決定 戦略"}
+    assert_received {:requested_query, "ティール ピーター 意思決定 戦略"}
+    assert_received {:requested_query, "ピーター ティール 意思決定"}
+    assert_received {:requested_query, "ピーターティール 意思決定"}
+    assert_received {:requested_query, "ティール ピーター 意思決定"}
+    assert_received {:requested_query, "ピーター ティール 戦略"}
+    assert_received {:requested_query, "ピーターティール 戦略"}
+    assert_received {:requested_query, "ティール ピーター 戦略"}
+    assert_received {:requested_query, "ピーターティール"}
+    assert_received {:requested_query, "ティール ピーター"}
+  end
+
+  test "falls back to entity-only middle-dot queries when modifiers break provider matching" do
+    requester = fn url ->
+      parsed_query = URI.parse(url).query || ""
+      query = URI.decode_query(parsed_query)["q"] || ""
+
+      body =
+        case query do
+          "ティール ピーター" ->
+            ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+              <item><title>ピーター・ティール - Wikipedia</title><link>https://example.com/wiki</link><description>投資家ピーター・ティール。</description></item>
+              <item><title>ピーター・ティールの戦略</title><link>https://example.com/strategy</link><description>意思決定と戦略。</description></item>
+            </channel></rss>)
+
+          _other ->
+            ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+              <item><title>ピーターの出演作</title><link>https://example.com/actor</link><description>ピーターの人物情報。</description></item>
+            </channel></rss>)
+        end
+
+      {:ok, %{status: 200, body: body}}
+    end
+
+    assert {:ok, results} =
+             WebSearch.search("ピーター・ティール 意思決定 戦略", requester: requester)
+
+    assert Enum.map(results, & &1.url) == [
+             "https://example.com/strategy",
+             "https://example.com/wiki"
+           ]
+  end
+
+  test "normalizes katakana proper names embedded in Japanese questions" do
+    requester = fn url ->
+      parsed_query = URI.parse(url).query || ""
+      query = URI.decode_query(parsed_query)["q"] || ""
+      send(self(), {:requested_query, query})
+
+      body =
+        case query do
+          query when query in ["ティール ピーター", "ティール ピーター 何者"] ->
+            ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+              <item><title>ピーター・ティール profile</title><link>https://example.com/thiel</link><description>投資家ピーター・ティールの人物情報。</description></item>
+            </channel></rss>)
+
+          _other ->
+            ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+              <item><title>ピーターの出演作</title><link>https://example.com/actor</link><description>ピーターの人物情報。</description></item>
+            </channel></rss>)
+        end
+
+      {:ok, %{status: 200, body: body}}
+    end
+
+    assert {:ok, [%{url: "https://example.com/thiel"}]} =
+             WebSearch.search("ピーター・ティールは何者？", requester: requester)
+
+    assert_received {:requested_query, "ピーター ティール"}
+    assert_received {:requested_query, "ティール ピーター"}
+
+    assert {:ok, [%{url: "https://example.com/thiel"}]} =
+             WebSearch.search("ピーターティールは何者？", requester: requester)
+
+    assert_received {:requested_query, "ピーターティール"}
+    assert_received {:requested_query, "ティール ピーター"}
+  end
+
+  test "prioritizes both sides of a middle-dot phrase even when it is the whole query" do
+    requester = fn _url ->
+      {:ok,
+       %{
+         status: 200,
+         body: ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+           <item><title>ピーターの出演作</title><link>https://example.com/actor</link><description>ピーターの人物情報。</description></item>
+           <item><title>ピーター・ティール profile</title><link>https://example.com/thiel</link><description>投資家ピーター・ティールの人物情報。</description></item>
+         </channel></rss>)
+       }}
+    end
+
+    assert {:ok, [%{url: "https://example.com/thiel"}]} =
+             WebSearch.search("ピーター・ティール", requester: requester)
+  end
+
+  test "keeps provider results when middle-dot phrase matching finds no exact Japanese result" do
+    requester = fn _url ->
+      {:ok,
+       %{
+         status: 200,
+         body: ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+           <item><title>Peter Thiel profile</title><link>https://example.com/thiel</link><description>English result for the person.</description></item>
+         </channel></rss>)
+       }}
+    end
+
+    assert {:ok, [%{url: "https://example.com/thiel"}]} =
+             WebSearch.search("ピーター・ティール", requester: requester)
+  end
+
+  test "searches connected katakana tokens with split fallback queries" do
+    requester = fn url ->
+      parsed_query = URI.parse(url).query || ""
+      query = URI.decode_query(parsed_query)["q"] || ""
+      send(self(), {:requested_query, query})
+
+      body =
+        case query do
+          "ティール ピーター" ->
+            ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+              <item><title>ピーター・ティール profile</title><link>https://example.com/thiel</link><description>投資家ピーター・ティールの人物情報。</description></item>
+            </channel></rss>)
+
+          _other ->
+            ~s(<?xml version="1.0" encoding="utf-8" ?><rss version="2.0"><channel>
+              <item><title>ピーターの出演作</title><link>https://example.com/actor</link><description>ピーターの人物情報。</description></item>
+            </channel></rss>)
+        end
+
+      {:ok, %{status: 200, body: body}}
+    end
+
+    assert {:ok, [%{url: "https://example.com/thiel"}]} =
+             WebSearch.search("ピーターティール", requester: requester)
+
+    assert_received {:requested_query, "ピーターティール"}
+    assert_received {:requested_query, "ティール ピーター"}
+  end
+end
